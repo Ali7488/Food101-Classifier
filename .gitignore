@@ -1,0 +1,7 @@
+data/
+__pycahche__/
+*.log
+*.pyc
+venv/
+.env
+*.png
