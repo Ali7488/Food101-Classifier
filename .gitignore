@@ -1,7 +1,9 @@
-data/
+data/food-101
 __pycahche__/
 *.log
 *.pyc
 venv/
 .env
 *.png
+*.jpg
+.ipynb_checkpoints/
