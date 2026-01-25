@@ -17,13 +17,17 @@ class Model(nn.Module):
             weights=weights
         )  # Load model with pre-trained weights
 
-        in_features = self.backbone.fc.in_features # gets feature vectors size before deleting classification layer
+        in_features = (
+            self.backbone.fc.in_features
+        )  # gets feature vectors size before deleting classification layer
 
         self.backbone.fc = (
             nn.Identity()
         )  # Removes ImageNet classes, and ouputs feature vectors instead
 
-        self.classifier = nn.Linear(in_features, num_classes) #converts the feature into 101 weighted sums
+        self.classifier = nn.Linear(
+            in_features, num_classes
+        )  # converts the feature into 101 weighted sums
 
     # Takes our images and turns them into raw scores (logits) to use later for softmax and cross-entropy loss
     def forward(self, images: torch.Tensor) -> torch.Tensor:
@@ -34,4 +38,3 @@ class Model(nn.Module):
             feature_vector
         )  # turns the feature vectors into 101 scores, outputs (N, 101)
         return logits
-
