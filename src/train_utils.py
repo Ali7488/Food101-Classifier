@@ -26,3 +26,40 @@ def build_optimizer(
         get_trainable_params(model), lr=lr, weight_decay=weight_decay
     )
 
+
+def accuracy(logits: torch.Tensor, labels: torch.Tensor) -> float:
+    preds = logits.argmax(dim=1)
+    correct = (preds == labels).sum().item()
+    return correct / labels.size(0)
+
+
+# A single epoch training step, runs forward pass, calculates loss, backpropogation, and makes a prediction per entry
+def train_step(
+    model: nn.Module,
+    images: torch.Tensor,
+    labels: torch.Tensor,
+    criterion: nn.Module,
+    optimizer: torch.optim.Optimizer,
+) -> tuple[float, float]:
+    model.train()
+    optimizer.zero_grad(set_to_none=True)  # Stops gradient accumulation
+    logits = model(images)  # forward pass
+    loss = criterion(logits, labels)  # compute cross-entropy loss
+    loss.backward()  # saves gradients into parameter.grad for each weight
+    optimizer.step()  # adjusts weight depending on lr and parameter.grad
+    acc = accuracy(logits.detach(), labels)  # calculates accuracy
+    return loss.item(), float(acc)
+
+
+def eval_step(
+    model: nn.Module, images: torch.Tensor, labels: torch.Tensor, criterion: nn.Module
+) -> tuple[float, float]:
+    model.eval()
+
+    # No gradient calculation
+    with torch.no_grad():
+        # same steps as training but nothing is changed or adjusted
+        logits = model(images)
+        loss = criterion(logits, labels)
+        acc = accuracy(logits, labels)
+        return loss.item(), float(acc)
