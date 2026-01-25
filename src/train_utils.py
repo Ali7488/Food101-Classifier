@@ -1,5 +1,7 @@
 import torch
 import torch.nn as nn
+from torch.cuda.amp import GradScaler
+from torch.amp import autocast
 
 
 # Enables/Disables gradient computation for the model backbone, ensures we only train the classifier and not the ResNet-50
@@ -40,13 +42,32 @@ def train_step(
     labels: torch.Tensor,
     criterion: nn.Module,
     optimizer: torch.optim.Optimizer,
-) -> tuple[float, float]:
+    scaler: GradScaler,
+    device: torch.device,
+)-> tuple[float, float]:
+    
+    #checks we are using cuda not the CPU
+    use_amp = (device.type == "cuda")
+
     model.train()
+    model.backbone.eval()
     optimizer.zero_grad(set_to_none=True)  # Stops gradient accumulation
-    logits = model(images)  # forward pass
-    loss = criterion(logits, labels)  # compute cross-entropy loss
-    loss.backward()  # saves gradients into parameter.grad for each weight
-    optimizer.step()  # adjusts weight depending on lr and parameter.grad
+    
+    #Uses lower precision on GPU
+    with autocast(device_type=device.type, enabled=use_amp):
+        logits = model(images)  # forward pass
+        loss = criterion(logits, labels)  # compute cross-entropy loss
+    
+    if use_amp:
+        # Prevents underflow/overflow for GPU only due to it using float16
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
+    else:
+        #CPU  path uses normal training with float32
+        loss.backward()  # saves gradients into parameter.grad for each weight
+        optimizer.step()  # adjusts weight depending on lr and parameter.grad
+    
     acc = accuracy(logits.detach(), labels)  # calculates accuracy
     return loss.item(), float(acc)
 
@@ -57,7 +78,7 @@ def eval_step(
     model.eval()
 
     # No gradient calculation
-    with torch.no_grad():
+    with torch.inference_mode():
         # same steps as training but nothing is changed or adjusted
         logits = model(images)
         loss = criterion(logits, labels)
