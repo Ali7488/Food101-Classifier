@@ -7,3 +7,5 @@ venv/
 *.png
 *.jpg
 .ipynb_checkpoints/
+*.pt
+*.pth
