@@ -1,3 +1,6 @@
+# TODO IMPLEMENT DEBUGGING MODE, INCREASE NUMWORKERS AND BATCH SIZE THEN BUILD PREDICTION MODEL WITH A WAY TO INPUT FILES
+
+
 from src.data import build_dataset, get_dataset_root
 from src.dataset import (
     dataSet,
@@ -18,15 +21,18 @@ import torch
 
 # GradScaler is still in torch.cuda.amp in PyTorch 2.x
 from torch.cuda.amp import GradScaler
+from tqdm.auto import tqdm
 
 
 # Runs one full epoch
 def train_one_epoch(model, loader, optimizer, criterion, device, scaler):
     loss_sum, acc_sum, n = 0.0, 0.0, 0
 
-    for xb, yb in loader:
+    # Wraps the loader to show a progress bar, removes progress bar after each epoch ends
+    pbar = tqdm(loader, desc="Training", leave=False)
+    non_blocking = device.type == "cuda"
+    for xb, yb in pbar:
         # check if were using cuda
-        non_blocking = device.type == "cuda"
         xb = xb.to(device, non_blocking=non_blocking)
         yb = yb.to(device, non_blocking=non_blocking)
 
@@ -38,13 +44,15 @@ def train_one_epoch(model, loader, optimizer, criterion, device, scaler):
             optimizer=optimizer,
             criterion=criterion,
             device=device,
-            scalar= scaler,
+            scaler=scaler,
         )
         batch_size = xb.size(0)
         loss_sum += loss * batch_size
         acc_sum += acc * batch_size
         n += batch_size
 
+        # Puts current loss and acc on the right side of the bar
+        pbar.set_postfix(loss=f"{loss:.3f}", acc=f"{acc*100:.2f}%")
     return loss_sum / n, acc_sum / n
 
 
@@ -52,9 +60,10 @@ def train_one_epoch(model, loader, optimizer, criterion, device, scaler):
 def validate(model, loader, criterion, device):
     loss_sum, acc_sum, n = 0.0, 0.0, 0
 
-    for xb, yb in loader:
+    pbar = tqdm(loader, desc="Evaluating", leave=False)
+    non_blocking = device.type == "cuda"
+    for xb, yb in pbar:
         # Check if we are using cuda and optimize accordingly
-        non_blocking = device.type == "cuda"
         xb = xb.to(device, non_blocking=non_blocking)
         yb = yb.to(device, non_blocking=non_blocking)
 
@@ -69,7 +78,7 @@ def validate(model, loader, criterion, device):
         loss_sum += loss * batch_size
         acc_sum += acc * batch_size
         n += batch_size
-
+        pbar.set_postfix(loss=f"{loss:.4f}", acc=f"{acc*100:.2f}%")
     return loss_sum / n, acc_sum / n
 
 
@@ -144,7 +153,7 @@ def main():
     optimizer = build_optimizer(model=food_model, lr=LR, weight_decay=WEIGHT_DECAY)
 
     # Training Loop
-    for epoch in range(EPOCHS):
+    for epoch in tqdm(range(EPOCHS), desc="Epochs"):
         train_loss, train_acc = train_one_epoch(
             food_model,
             train_dataloader,
@@ -162,7 +171,7 @@ def main():
 
         if val_acc > best_val_accuracy:
             best_val_accuracy = val_acc
-            torch.save(food_model.state_dict(),"food101resbet50.pth")
+            torch.save(food_model.state_dict(), "food101resnet50.pth")
 
         print(
             f"Epoch {epoch+1}/{EPOCHS} | "
